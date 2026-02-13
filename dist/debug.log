@@ -1,0 +1,6 @@
+2026-02-12 22:30:34.092714: Loading master data from: \\wsl.localhost\Ubuntu-24.04\home\sssssmmm\safian\dist\2026통합발주서_영업_연습.xlsb
+2026-02-12 22:30:34.242013: Product Columns: ['품번을 입력하세요:', 'B2504240301', 'DUALFIXPRO-티크', 'Unnamed: 3', 'Unnamed: 4', '품번', '제품명', '사은품 1', '사은품 2', '사은품 3', '사은품 4', '사은품 5', 'Unnamed: 12', 'Unnamed: 13', 'Unnamed: 14', 'Unnamed: 15', 'Unnamed: 16', 'Unnamed: 17', 'Unnamed: 18', 'Unnamed: 19']
+2026-02-12 22:30:34.277677: Address Columns: ['Unnamed: 0', '매장명', '전화번호', '점주 전화번호', 'Unnamed: 4', '주소']
+2026-02-12 22:36:27.372037: Loading master data from: \\wsl.localhost\Ubuntu-24.04\home\sssssmmm\safian\dist\2026통합발주서_영업_연습.xlsb
+2026-02-12 22:36:27.555587: Product Columns: ['품번을 입력하세요:', 'B2504240301', 'DUALFIXPRO-티크', 'Unnamed: 3', 'Unnamed: 4', '품번', '제품명', '사은품 1', '사은품 2', '사은품 3', '사은품 4', '사은품 5', 'Unnamed: 12', 'Unnamed: 13', 'Unnamed: 14', 'Unnamed: 15', 'Unnamed: 16', 'Unnamed: 17', 'Unnamed: 18', 'Unnamed: 19']
+2026-02-12 22:36:27.607933: Address Columns: ['Unnamed: 0', '매장명', '전화번호', '점주 전화번호', 'Unnamed: 4', '주소']

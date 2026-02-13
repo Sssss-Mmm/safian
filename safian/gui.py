@@ -88,11 +88,17 @@ class OrderApp:
 
         # Buttons
         btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(fill="x", padx=10, pady=5)
+        btn_frame.pack(fill="x", padx=5, pady=5)
         
-        ttk.Button(btn_frame, text="추가", command=self.add_item).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="선택 삭제", command=self.remove_item).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="엑셀 저장", command=self.export_excel).pack(side="right", padx=5)
+        ttk.Button(btn_frame, text="추가 (Enter)", command=self.add_item).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="삭제 (Del)", command=self.remove_item).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="엑셀 데이터 붙여넣기 (Ctrl+V)", command=self.paste_from_clipboard).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="엑셀 저장", command=self.export_to_excel).pack(side="right", padx=5)
+
+        # Bind keys
+        self.root.bind("<Return>", lambda e: self.add_item())
+        self.root.bind("<Delete>", lambda e: self.remove_item())                                                                         
+        self.root.bind("<Control-v>", lambda e: self.paste_from_clipboard())
 
         # Treeview (List)
         cols = ("거래처명", "주문인", "수취인", "바코드", "제품명", "수량", "배송메모")
@@ -119,44 +125,139 @@ class OrderApp:
             # messagebox.showwarning("경고", "상품을 찾을 수 없습니다.") # Might be annoying on every focus out
             pass
 
+    def paste_from_clipboard(self, event=None):
+        try:
+            content = self.root.clipboard_get()
+            if not content:
+                return
+
+            rows = content.strip().split('\n')
+            if not rows:
+                return
+            
+            # Helper to parse a single row string into a data dict
+            def parse_row(row_str):
+                row_vals = row_str.split('\t')
+                vals = [c.strip() for c in row_vals]
+                
+                mapping = {
+                    0: 'partner',
+                    1: 'orderer',
+                    2: 'mid_recipient',
+                    4: 'phone',
+                    5: 'mobile',
+                    7: 'address',
+                    8: 'barcode',
+                    11: 'qty',
+                    12: 'fee',
+                    13: 'ship_fee',
+                    14: 'memo'
+                }
+                
+                data = {}
+                # Initialize with empty strings for all known fields
+                for key in self.entries.keys():
+                    data[key] = ""
+
+                for src_idx, key in mapping.items():
+                    if src_idx < len(vals):
+                        data[key] = vals[src_idx]
+                
+                # Cleanup Qty
+                if not data['qty'] or data['qty'] == '0' or not data['qty'].isdigit():
+                    data['qty'] = '1'
+                
+                return data
+
+            # Logic:
+            # If multiple rows -> Auto-add all (silent mode for individual errors, report at end)
+            # If single row -> Fill inputs so user can edit before adding
+            
+            if len(rows) > 1:
+                added_count = 0
+                error_count = 0
+                
+                for r in rows:
+                    if not r.strip(): continue
+                    data = parse_row(r)
+                    if self._process_and_add_order(data, silent=True):
+                        added_count += 1
+                    else:
+                        error_count += 1
+                
+                msg = f"{added_count}건 추가 완료."
+                if error_count > 0:
+                    msg += f"\n(실패/중복/수기입력 필요: {error_count}건)"
+                messagebox.showinfo("완료", msg)
+                
+            else:
+                # Single row - fill inputs
+                data = parse_row(rows[0])
+                for key, val in data.items():
+                    entry = self.entries.get(key)
+                    if entry:
+                        entry.delete(0, 'end')
+                        entry.insert(0, val)
+                
+                # Auto-lookup for single row
+                if data['barcode']:
+                     self._on_barcode_leave(None)
+
+        except Exception as e:
+            print(f"Clipboard paste error: {e}")
+            messagebox.showerror("오류", f"클립보드 붙여넣기 실패: {e}")
+
     def add_item(self):
+        # Gather data from entries
         data = {key: entry.get() for key, entry in self.entries.items()}
         
+        if self._process_and_add_order(data, silent=False):
+            # Clear specific fields on success
+            self.entries["barcode"].delete(0, "end")
+            self.entries["qty"].delete(0, "end")
+            # self.entries["memo"].delete(0, "end")
+
+    def _process_and_add_order(self, data, silent=False):
         # Validation
         if not data["barcode"]:
-            messagebox.showwarning("경고", "바코드는 필수입니다.")
-            return
+            if not silent: messagebox.showwarning("경고", "바코드는 필수입니다.")
+            return False
 
         # Lookup Product
-        product_name = "N/A"
-        gifts = []
+        items_to_add = []
         if self.processor:
-            prod_info = self.processor.lookup_product(data["barcode"])
-            if prod_info:
-                product_name = prod_info['product_name']
-                gifts = prod_info['gifts']
+            lookup_results = self.processor.lookup_product(data["barcode"])
+            if lookup_results:
+                items_to_add = lookup_results
             else:
-                if not messagebox.askyesno("확인", "등록되지 않은 품번입니다. 계속하시겠습니까?"):
-                    return
+                if not silent:
+                    if not messagebox.askyesno("확인", f"등록되지 않은 품번 '{data['barcode']}'입니다. 계속하시겠습니까?"):
+                        return False
+                # If silent (bulk) or user said yes, add as manual
+                items_to_add = [{'type': '수기', 'product_name': '직접입력', 'barcode': data["barcode"]}]
+        else:
+             # No processor loaded
+             items_to_add = [{'type': '수기', 'product_name': '직접입력', 'barcode': data["barcode"]}]
 
-        # Add to local list
-        item_data = {
-            **data,
-            "product_name": product_name,
-            "gifts": ", ".join(map(str, gifts))
-        }
-        self.order_list.append(item_data)
-
-        # Add to Treeview
-        values = (data["partner"], data["orderer"], data["mid_recipient"], 
-                  data["barcode"], product_name, data["qty"], data["memo"])
-        self.tree.insert("", "end", values=values)
+        # Add to local list and Treeview
+        base_qty = int(data["qty"]) if data["qty"].isdigit() else 1
         
-        # Clear specific fields? Or keep for convenience? 
-        # Usually clear Barcode, Qty, Memo. Partner/Orderer might repeat.
-        self.entries["barcode"].delete(0, "end")
-        self.entries["qty"].delete(0, "end")
-        self.entries["memo"].delete(0, "end")
+        for item in items_to_add:
+            row_data = data.copy()
+            row_data["product_name"] = item['product_name']
+            row_data["barcode"] = item['barcode'] 
+            row_data["type"] = item['type']
+            
+            self.order_list.append(row_data)
+
+            # Treeview display
+            values = (data["partner"], data["orderer"], data["mid_recipient"], 
+                      row_data["barcode"], f"[{item['type']}] {item['product_name']}", 
+                      data["qty"], data["memo"])
+            self.tree.insert("", "end", values=values)
+            
+        return True
+
 
     def remove_item(self):
         selected = self.tree.selection()
@@ -171,19 +272,19 @@ class OrderApp:
             del self.order_list[idx]
             self.tree.delete(item)
 
-    def export_excel(self):
+    def export_to_excel(self):
         if not self.order_list:
             messagebox.showwarning("경고", "저장할 데이터가 없습니다.")
             return
 
         path = filedialog.asksaveasfilename(defaultextension=".xlsx", 
-                                            filetypes=[("Excel files", "*.xlsx")])
+                                            filetypes=[("Excel files", "*.xlsx"), ("Excel Binary", "*.xlsb")])
         if not path:
             return
 
         if self.processor:
-            success = self.processor.generate_order_file(self.order_list, path)
+            success, msg = self.processor.generate_order_file(self.order_list, path)
             if success:
                 messagebox.showinfo("성공", "파일 저장 완료!")
             else:
-                messagebox.showerror("오류", "파일 저장 실패")
+                messagebox.showerror("오류", msg)
