@@ -4,6 +4,9 @@ import os
 import sys
 
 def main():
+    # Redirect stderr to debug.log for crash capturing
+    sys.stderr = open("debug.log", "a", encoding="utf-8")
+    
     if getattr(sys, 'frozen', False):
         # Application is frozen
         # _MEIPASS contains bundled resources (like images/data added via --add-data)
