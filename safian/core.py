@@ -99,7 +99,7 @@ class OrderProcessor:
         self._log(f"Match found: {items}")     
         return items
 
-    def generate_order_file(self, order_data_list, output_path):
+    def generate_order_file(self, order_data_list, output_path, overwrite=False):
         """
         Generates order file. If output_path ends with .xlsb, uses Excel Automation.
         Otherwise uses pandas for .xlsx.
@@ -117,9 +117,13 @@ class OrderProcessor:
 
         # Check file extension
         if output_path.lower().endswith('.xlsb'):
-            return self._save_to_xlsb_win32(order_data_list, output_path, columns)
+            return self._save_to_xlsb_win32(order_data_list, output_path, columns, overwrite)
         
         # Standard XLSX export
+        # overwrite is implicit for xlsx as we create new file, 
+        # but if we wanted to append to xlsx it would be different.
+        # For now, xlsx logic creates new file always as per original design.
+        
         df = pd.DataFrame(order_data_list)
         for col in columns:
             if col not in df.columns:
@@ -147,7 +151,7 @@ class OrderProcessor:
             print(error_msg)
             return False, error_msg
 
-    def _save_to_xlsb_win32(self, order_data_list, output_path, columns):
+    def _save_to_xlsb_win32(self, order_data_list, output_path, columns, overwrite=False):
         """Modified existing XLSB using Excel Application (Windows Only)."""
         import platform
         if platform.system() != 'Windows':
@@ -167,19 +171,9 @@ class OrderProcessor:
             excel.Visible = False # Run in background
             # excel.DisplayAlerts = False # Be careful with this, might overwrite without warning
 
-            # Determine typical path behavior
-            # output_path might be same as input path (overwrite) or new path
-            # If new path, we should copy master to new path first?
-            # Or assume user selected the master file as target?
-            
-            # Since user said "put contents INTO the file", we assume modifying the existing file.
-            # But we must be careful.
-            
             abs_path = os.path.abspath(output_path)
             
             if not os.path.exists(abs_path):
-                 # If target doesn't exist, maybe copy from master?
-                 # For now, let's assume user selected an existing file to append to.
                  return False, "대상 XLSB 파일이 존재하지 않습니다."
 
             workbook = excel.Workbooks.Open(abs_path)
@@ -197,12 +191,24 @@ class OrderProcessor:
                 for col_idx, col_name in enumerate(columns):
                     sheet.Cells(1, col_idx + 1).Value = col_name
             
-            # Find last row
-            last_row = sheet.Cells(sheet.Rows.Count, 1).End(-4162).Row # xlUp
-            if last_row == 1 and sheet.Cells(1, 1).Value is None:
-                last_row = 0 # Empty sheet
+            start_row = 0
             
-            start_row = last_row + 1
+            if overwrite:
+                # Find last used row to clear
+                last_used_row = sheet.Cells(sheet.Rows.Count, 1).End(-4162).Row
+                if last_used_row > 1:
+                    # Clear from row 2 to last used row
+                    # Use Range object
+                    range_to_clear = sheet.Range(f"A2:M{last_used_row}") # Assuming M is last column (13th)
+                    range_to_clear.ClearContents()
+                
+                start_row = 2
+            else:
+                # Find last row to append
+                last_row = sheet.Cells(sheet.Rows.Count, 1).End(-4162).Row # xlUp
+                if last_row == 1 and sheet.Cells(1, 1).Value is None:
+                    last_row = 0 # Empty sheet
+                start_row = last_row + 1
             
             # Write data row by row
             for i, data in enumerate(order_data_list):

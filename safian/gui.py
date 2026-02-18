@@ -282,8 +282,30 @@ class OrderApp:
         if not path:
             return
 
+        overwrite = False
+        # If saving as .xlsb and file exists, ask for Append vs Overwrite logic
+        # Note: filedialog already asks "Confirm Save As" which implies overwriting the FILE.
+        # But for XLSB we are doing a special modification.
+        # If user selected an existing file, Windows already asked "Replce?".
+        # If we just proceed, we might duplicate logic or fail.
+        
+        # However, our core logic for .xlsb is "Modify existing". 
+        # So we need to clarify intent.
+        
+        if path.lower().endswith('.xlsb') and os.path.exists(path):
+            # Custom dialog to ask intent
+            # Yes = Overwrite (Clean sheet), No = Append
+            answer = messagebox.askyesnocancel("저장 방식 확인", 
+                                               "선택하신 파일은 변경 가능한 엑셀 파일입니다.\n\n"
+                                               "'예(Y)': 기존 발주내역을 지우고 덮어씁니다.\n"
+                                               "'아니오(N)': 기존 발주내역 뒤에 추가합니다.\n"
+                                               "'취소': 저장을 취소합니다.")
+            if answer is None: # Cancel
+                return
+            overwrite = answer
+
         if self.processor:
-            success, msg = self.processor.generate_order_file(self.order_list, path)
+            success, msg = self.processor.generate_order_file(self.order_list, path, overwrite=overwrite)
             if success:
                 messagebox.showinfo("성공", "파일 저장 완료!")
             else:
