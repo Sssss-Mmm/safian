@@ -1,44 +1,29 @@
 import tkinter as tk
-from safian.gui import OrderApp
 import os
 import sys
+from safian.gui import OrderApp
 
 def main():
-    # Redirect stderr to debug.log for crash capturing
-    sys.stderr = open("debug.log", "a", encoding="utf-8")
+    root = tk.Tk()
     
-    if getattr(sys, 'frozen', False):
-        # Application is frozen
-        # _MEIPASS contains bundled resources (like images/data added via --add-data)
-        # sys.executable is the path to the exe file
-        
-        # We assume the master file is external (next to the exe)
-        base_path = os.path.dirname(sys.executable)
-    else:
-        # Application is not frozen
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        
-    # Check for master file in common locations
-    possible_paths = [
-        os.path.join(base_path, '2026통합발주서_영업_연습.xlsb'),
-        os.path.join(os.getcwd(), '2026통합발주서_영업_연습.xlsb'),
-        '2026통합발주서_영업_연습.xlsb'
+    # 엑셀 파일 이름 찾기
+    possible_names = [
+        "2026통합발주서_영업_연습.xlsb",
+        os.path.join("dist", "2026통합발주서_영업_연습.xlsb"),
+        os.path.join("..", "2026통합발주서_영업_연습.xlsb"),
     ]
     
-    master_file = '2026통합발주서_영업_연습.xlsb' # Default
-    for p in possible_paths:
-        if os.path.exists(p):
-            master_file = p
-            break
-            
-    if not os.path.exists(master_file):
-         # If not found, let OrderApp handle it or prompt
-         # But OrderApp expects a path.
-         print(f"Error: Master file not found at {master_file}")
-         # Could show a simple messagebox before tk init if needed, or just let App handle it (App handles it)
+    excel_file = ""
+    for name in possible_names:
+        if os.path.exists(name):
+             excel_file = name
+             break
+             
+    if not excel_file:
+         # 파일이 없더라도 일단 빈 문자열로 실행, 에러 메시지 출력됨
+         excel_file = "2026통합발주서_영업_연습.xlsb"
 
-    root = tk.Tk()
-    app = OrderApp(root, master_file)
+    app = OrderApp(root, excel_file)
     root.mainloop()
 
 if __name__ == "__main__":
